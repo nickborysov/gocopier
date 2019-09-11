@@ -44,7 +44,7 @@ jobs:
             - "/go/pkg/mod"
       - run: go test -v -covermode=count -coverprofile=coverage.out ./...
       - run: go-acc -o coverage.out ./... -- -failfast -timeout=20m
-      - run: goveralls -coverprofile=coverage.out -service=travis-pro -repotoken $COVERALLS_TOKEN"
+      - run: goveralls -coverprofile=coverage.out -service=travis-pro -repotoken $COVERALLS_TOKEN
 
 workflows:
   version: 2
