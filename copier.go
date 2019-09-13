@@ -33,11 +33,6 @@ func New() *Copier {
 	}
 }
 
-// AddConverters add converters to copier
-func (c *Copier) AddConverters(cc []Converter) {
-	c.Converters = append(c.Converters, cc...)
-}
-
 // SetConverters set converters to copier
 func (c *Copier) SetConverters(cc []Converter) {
 	c.Converters = cc
