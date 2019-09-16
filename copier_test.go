@@ -1,9 +1,14 @@
 package copier
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+)
+
+const (
+	testString = "Lorem ipsum dolor sit amet"
 )
 
 func Test_Copy_InvalidDestination(t *testing.T) {
@@ -19,10 +24,10 @@ func Test_Copy_ErrInvalidSource(t *testing.T) {
 
 func Test_Copy_StringToString(t *testing.T) {
 	var dst string
-	var src = "Lorem ipsum dolor sit amet"
+	var src = testString
 	err := Copy(&dst, &src)
 	assert.NoError(t, err)
-	assert.Equal(t, "Lorem ipsum dolor sit amet", dst)
+	assert.Equal(t, testString, dst)
 }
 
 func Test_Copy_IntToString(t *testing.T) {
@@ -121,6 +126,15 @@ func Test_Copy_MapStringStringToMapStringInt(t *testing.T) {
 	assert.Equal(t, expRes, dst)
 }
 
+func Test_Copy_MapToSlice(t *testing.T) {
+	var dst []string
+	var src = map[string]string{"Lorem": "100", "ipsum": "200", "dolor": "300", "sit": "400", "amet": "500"}
+	expRes := []string(nil)
+	err := Copy(&dst, &src)
+	assert.EqualError(t, err, "src and dst fields has different types: expected map, actual slice")
+	assert.Equal(t, expRes, dst)
+}
+
 func Test_Copy_MapStringStringToMapStringIntWithConverter(t *testing.T) {
 	var dst map[string]int
 	var src = map[string]string{"Lorem": "100", "ipsum": "200", "dolor": "300", "sit": "400", "amet": "500"}
@@ -170,6 +184,28 @@ func Test_Copy_StructAToStructBWithConverter(t *testing.T) {
 	}
 	err := Copy(&dst, &src, StringToIntConverter)
 	assert.NoError(t, err)
+	assert.Equal(t, expResult, dst)
+}
+
+func Test_Copy_StructAToStructB(t *testing.T) {
+	type A struct {
+		ID   string
+		Name string
+		Type string
+	}
+	type B struct {
+		ID   int
+		Name string
+	}
+	var dst B
+	var src = A{
+		ID:   "100",
+		Name: "Jonh",
+		Type: "skipped",
+	}
+	expResult := B{}
+	err := Copy(&dst, &src)
+	assert.EqualError(t, err, "src and dst fields has different types: expected string, actual int")
 	assert.Equal(t, expResult, dst)
 }
 
@@ -282,17 +318,138 @@ func Test_Copy_StructWithPointersToStructWithoutPointerWithConverter(t *testing.
 		Value int
 	}
 	var dst B
-	name := "Jonh"
+	name := "Bill"
 	valueString := "100"
 	var src = A{
 		Name:  &name,
 		Value: &valueString,
 	}
 	var expResult = B{
-		Name:  "Jonh",
+		Name:  "Bill",
 		Value: 100,
 	}
 	err := Copy(&dst, &src, StringToIntConverter)
+	assert.NoError(t, err)
+	assert.Equal(t, expResult, dst)
+}
+
+func Test_Copy_StructWithPointersWithNilToStructWithoutPointerWithConverter(t *testing.T) {
+	type A struct {
+		Name  *string
+		Value *string
+	}
+	type B struct {
+		Name  string
+		Value int
+	}
+	var dst B
+	name := "Jonh"
+	var src = A{
+		Name:  &name,
+		Value: nil,
+	}
+	var expResult = B{
+		Name:  "Jonh",
+		Value: 0,
+	}
+	err := Copy(&dst, &src, StringToIntConverter)
+	assert.NoError(t, err)
+	assert.Equal(t, expResult, dst)
+}
+
+func Test_Copy_PointerStringToString(t *testing.T) {
+	str := testString
+	var dst string
+	var src = &str
+	var expResult = testString
+	err := Copy(&dst, &src)
+	assert.NoError(t, err)
+	assert.Equal(t, expResult, dst)
+}
+
+func Test_Copy_PointerStringToNilPointerString(t *testing.T) {
+	str := testString
+	var dst *string
+	var src = &str
+	expStr := testString
+	var expResult = &expStr
+	err := Copy(&dst, &src)
+	assert.NoError(t, err)
+	assert.Equal(t, *expResult, *dst)
+}
+
+func Test_Copy_PointerStringToNOtNilPointerString(t *testing.T) {
+	str := testString
+	var dst = new(string)
+	var src = &str
+	expStr := testString
+	var expResult = &expStr
+	err := Copy(&dst, &src)
+	assert.NoError(t, err)
+	assert.Equal(t, *expResult, *dst)
+}
+
+func Test_Copy_SliceOfStructToMapOfStructWithCustomConverter(t *testing.T) {
+	type typeA struct {
+		Name  string
+		Value int
+	}
+
+	type typeB struct {
+		Name  string
+		Value string
+	}
+	var dst map[string]typeB
+
+	var src = []typeA{
+		{
+			Name:  "Jonh",
+			Value: 100,
+		},
+		{
+			Name:  "Bill",
+			Value: 200,
+		},
+		{
+			Name:  "Bob",
+			Value: 300,
+		},
+	}
+	var expResult = map[string]typeB{
+		"Jonh": {
+			Name:  "Jonh",
+			Value: "100",
+		},
+		"Bill": {
+			Name:  "Bill",
+			Value: "200",
+		},
+		"Bob": {
+			Name:  "Bob",
+			Value: "300",
+		},
+	}
+
+	err := Copy(&dst, &src, Converter{
+		Src: []typeA{},
+		Dst: make(map[string]typeB),
+		Convert: func(src interface{}) (interface{}, error) {
+			slice, ok := src.([]typeA)
+			if !ok {
+				return nil, errors.New("error text")
+			}
+			var res = map[string]typeB{}
+			for i := range slice {
+				var item typeB
+				err := Copy(&item, &slice[i], IntToStringConverter)
+				if err != nil {
+					return nil, err
+				}
+				res[slice[i].Name] = item
+			}
+			return res, nil
+		},
+	})
 	assert.NoError(t, err)
 	assert.Equal(t, expResult, dst)
 }

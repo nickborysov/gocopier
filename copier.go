@@ -194,32 +194,22 @@ func (c *Copier) copySliceArray(dst, src reflect.Value) error {
 }
 
 func (c *Copier) copyElement(dst, src reflect.Value) error {
-	dstElem := dst
 	if dst.Kind() == reflect.Ptr {
 		if dst.IsNil() {
 			newElem := reflect.New(reflect.TypeOf(dst.Interface()).Elem())
 			dst.Set(newElem)
-			dstElem = newElem
-		} else {
-			dstElem = dst.Elem()
 		}
+		return c.copyInterface(dst.Elem(), src)
 	}
-	if src.Kind() == reflect.Ptr && dstElem.Kind() == reflect.Ptr {
-		return c.copyInterface(dstElem, src.Elem())
+	if src.Kind() != dst.Kind() {
+		return fmt.Errorf("%s: expected %s, actual %s", ErrDifferentTypes, src.Kind(), dst.Kind())
 	}
-	if src.Kind() != dstElem.Kind() {
-		return fmt.Errorf("%s: expected %s, actual %s", ErrDifferentTypes, src.Kind(), dstElem.Kind())
+	if src.Type() != dst.Type() {
+		return fmt.Errorf("%s: expected %s, actual %s", ErrDifferentTypes, src.Type(), dst.Type())
 	}
-	if src.Type() != dstElem.Type() {
-		return fmt.Errorf("%s: expected %s, actual %s", ErrDifferentTypes, src.Type(), dstElem.Type())
-	}
-	switch {
-	case dst.CanSet():
-		dst.Set(src)
-	case dstElem.CanSet():
-		dstElem.Set(src)
-	default:
+	if !dst.CanSet() {
 		return fmt.Errorf("%s: %v to %v", ErrCannotSetValue, src, dst)
 	}
+	dst.Set(src)
 	return nil
 }
